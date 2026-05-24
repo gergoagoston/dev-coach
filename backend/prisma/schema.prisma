@@ -1,0 +1,44 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  githubUsername String            @id
+  createdAt      DateTime          @default(now())
+  pullRequests   PullRequest[]
+  memories       LearningMemory[]
+}
+
+model PullRequest {
+  id             Int      @id @default(autoincrement())
+  githubUsername String
+  repoName       String   // Added to track which repository it belongs to
+  prNumber       Int
+  title          String
+  status         String
+  aiAnalysis     String?  @db.Text // Holds the complete code review JSON/text
+  conflictRadar  String?  @db.Text // Holds the complete conflict radar JSON/text
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [githubUsername], references: [githubUsername])
+
+  @@unique([repoName, prNumber])
+}
+
+model LearningMemory {
+  id             Int      @id @default(autoincrement())
+  githubUsername String
+  concept        String   
+  count          Int      @default(1)
+  title          String   // e.g., "Missing Error Handling"
+  description    String   @db.Text // Deep AI explanation
+  badExample     String   @db.Text // Code example showing the bug
+  goodExample    String   @db.Text // Code example showing the fix
+  lastSeen       DateTime @default(now()) @updatedAt
+  user           User     @relation(fields: [githubUsername], references: [githubUsername])
+
+  @@unique([githubUsername, concept])
+}
