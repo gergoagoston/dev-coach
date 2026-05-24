@@ -12,14 +12,25 @@ export type GeminiCodeReviewResult = {
 };
 
 export type GeminiConflictFinding = {
+	filename: string;
 	conflictingPrNumber: number;
-	title: string;
-	developerToTalkTo: string;
-	conflictingFile: string;
-	dynamicReasoning: string;
-	suggestions: string[];
+	conflictingUser: string;
+	reasoning: string;
 };
 
-export type GeminiRepoTaskSuggestions = {
+export type GeminiConflictResult = {
+	conflicts: GeminiConflictFinding[];
+};
+
+export type GeminiRepoHabit = {
+	concept: string;
+	title: string;
+	description: string;
+	evidenceFiles: string[];
+	priority: "high" | "medium" | "low";
+};
+
+export type GeminiRepoHabitsResult = {
+	habits: GeminiRepoHabit[];
 	recommendations: string[];
 };

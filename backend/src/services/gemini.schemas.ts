@@ -68,3 +68,42 @@ export const repoTaskSchema = {
 	required: ["recommendations"],
 	additionalProperties: false,
 } as const;
+
+export const repoHabitsSchema = {
+	type: "object",
+	properties: {
+		habits: {
+			type: "array",
+			items: {
+				type: "object",
+				properties: {
+					concept: { type: "string" },
+					title: { type: "string" },
+					description: { type: "string" },
+					evidenceFiles: {
+						type: "array",
+						items: { type: "string" },
+					},
+					priority: {
+						type: "string",
+						enum: ["high", "medium", "low"],
+					},
+				},
+				required: [
+					"concept",
+					"title",
+					"description",
+					"evidenceFiles",
+					"priority",
+				],
+				additionalProperties: false,
+			},
+		},
+		recommendations: {
+			type: "array",
+			items: { type: "string" },
+		},
+	},
+	required: ["habits", "recommendations"],
+	additionalProperties: false,
+} as const;

@@ -5,7 +5,7 @@ import type {
 	GithubConflictPullRequest,
 	GithubPullRequest,
 	GithubPullRequestFile,
-} from "../schemas/github.types.js";
+} from "../types/github.types.js";
 import { findOverlappingFiles, parseRepoSlug } from "../utils/github.utils.js";
 
 export async function fetchPullRequestDiff(

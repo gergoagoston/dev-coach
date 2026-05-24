@@ -11,10 +11,10 @@ const getStatusBadgeClassName = (status: string) => {
 	const normalizedStatus = status.toLowerCase();
 
 	if (normalizedStatus === "open") {
-		return "bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-xl font-semibold";
+		return "bg-emerald-50 text-emerald-700";
 	}
 
-	return "bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full text-xl font-semibold";
+	return "bg-purple-50 text-purple-700";
 };
 
 export const PullRequestRow = ({
@@ -28,31 +28,35 @@ export const PullRequestRow = ({
 	<tr
 		className={
 			isSelected
-				? "group bg-slate-50/80 transition-colors"
-				: "group transition-colors hover:bg-slate-50/70"
+				? "bg-slate-50/80 transition-colors"
+				: "transition-colors hover:bg-slate-50/70"
 		}
 	>
-		<td className="px-6 py-5 align-top">
-			<div className=" font-medium text-slate-900 text-xl">
+		<td className="px-6 py-4 align-top">
+			<div className="text-sm font-medium text-slate-900">
 				#{prNumber} {title}
 			</div>
 		</td>
-		<td className="px-6 py-5 align-top">
-			<span className={getStatusBadgeClassName(status)}>{status}</span>
+		<td className="px-6 py-4 align-top">
+			<span
+				className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClassName(status)}`}
+			>
+				{status}
+			</span>
 		</td>
-		<td className="px-6 py-5 text-right align-top">
-			<div className="flex items-center justify-end gap-2 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 translate-y-1 pointer-events-none group-hover:pointer-events-auto">
+		<td className="px-6 py-4 text-right align-top">
+			<div className="flex items-center justify-end gap-2">
 				<button
 					type="button"
 					onClick={onSelectAnalyze}
-					className="rounded-lg border border-slate-200 px-3 py-1.5 text-xl font-medium text-slate-700 transition-all hover:bg-slate-50"
+					className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50"
 				>
 					Analyze
 				</button>
 				<button
 					type="button"
 					onClick={onSelectRadar}
-					className="rounded-lg border border-slate-200 px-3 py-1.5 text-xl font-medium text-slate-700 transition-all hover:bg-slate-50"
+					className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 transition-all hover:bg-slate-50"
 				>
 					Conflict Radar
 				</button>

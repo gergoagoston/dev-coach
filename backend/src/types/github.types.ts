@@ -22,6 +22,12 @@ export type GithubConflictsBody = {
 
 export type GithubCheckConflictsBody = GithubConflictsBody;
 
+export type GithubRepositoryHabitsBody = {
+	token?: string;
+	repoName?: string;
+	taskDescription?: string;
+};
+
 export type RepoSlug = {
 	owner: string;
 	repo: string;

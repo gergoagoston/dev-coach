@@ -33,6 +33,7 @@ async function main() {
 	console.log("Indexing repository at:", repoDir);
 	const res = await indexRepository({
 		workspaceDir: repoDir,
+		repoUrl: "local",
 		maxFiles: 800,
 		maxChunkSize: 3000,
 	});

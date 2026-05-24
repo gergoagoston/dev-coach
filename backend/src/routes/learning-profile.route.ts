@@ -1,9 +1,10 @@
 import { Router } from "express";
 import type { PrismaClient } from "@prisma/client";
 import type {
-	LearningProfileResponse,
 	LearningMemoryRecord,
-} from "../schemas/learning-profile.types.js";
+	LearningProfileResponse,
+} from "../types/learning-profile.types.js";
+import { badRequest } from "../utils/http.utils.js";
 
 export function createLearningProfileRouter(prisma: PrismaClient) {
 	const router = Router();
@@ -12,7 +13,7 @@ export function createLearningProfileRouter(prisma: PrismaClient) {
 		const { username } = req.query;
 
 		if (!username || typeof username !== "string") {
-			res.status(400).json({ error: "Missing username query parameter" });
+			badRequest(res, "Missing username query parameter");
 			return;
 		}
 
@@ -22,7 +23,12 @@ export function createLearningProfileRouter(prisma: PrismaClient) {
 				orderBy: [{ count: "desc" }, { lastSeen: "desc" }],
 			});
 
-			const orderedMistakes = mistakes as LearningMemoryRecord[];
+			const orderedMistakes: LearningMemoryRecord[] = mistakes.map(
+				(mistake) => ({
+					...mistake,
+					lastSeen: mistake.lastSeen.toISOString(),
+				}),
+			);
 			const summary: LearningProfileResponse["summary"] = {
 				totalPatterns: orderedMistakes.reduce(
 					(total, item) => total + item.count,
@@ -36,9 +42,7 @@ export function createLearningProfileRouter(prisma: PrismaClient) {
 			res.status(200).json({ mistakes: orderedMistakes, summary });
 		} catch (error) {
 			console.error("Failed to fetch learning profile:", error);
-			res
-				.status(500)
-				.json({ error: "Failed to load engineering black-box records." });
+			res.status(500).json({ error: "Failed to load learning profile" });
 		}
 	});
 

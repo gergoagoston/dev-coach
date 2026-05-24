@@ -1,7 +1,8 @@
-import { Octokit } from "@octokit/rest";
 import { Router } from "express";
 import type { PrismaClient } from "@prisma/client";
-import type { GithubValidateBody } from "../schemas/github.types.js";
+import type { GithubValidateBody } from "../types/github.types.js";
+import { badRequest } from "../utils/http.utils.js";
+import { createOctokit, ensureGithubUser } from "../utils/github.utils.js";
 
 export function createGithubValidateRouter(prisma: PrismaClient) {
 	const router = Router();
@@ -10,19 +11,14 @@ export function createGithubValidateRouter(prisma: PrismaClient) {
 		const { token } = req.body as GithubValidateBody;
 
 		if (!token) {
-			res.status(400).json({ error: "GitHub token is required" });
+			badRequest(res, "GitHub token is required");
 			return;
 		}
 
 		try {
-			const octokit = new Octokit({ auth: token });
+			const octokit = createOctokit(token);
 			const { data: user } = await octokit.rest.users.getAuthenticated();
-
-			const savedUser = await prisma.user.upsert({
-				where: { githubUsername: user.login },
-				create: { githubUsername: user.login },
-				update: {},
-			});
+			const savedUser = await ensureGithubUser(prisma, user.login);
 
 			res.status(200).json({
 				username: user.login,
@@ -33,7 +29,6 @@ export function createGithubValidateRouter(prisma: PrismaClient) {
 					createdAt: savedUser.createdAt,
 				},
 			});
-			console.log(`GitHub user validated: ${user.login}`);
 		} catch (error) {
 			console.error("GitHub validate failed:", error);
 			res.status(401).json({ error: "GitHub token validation failed" });

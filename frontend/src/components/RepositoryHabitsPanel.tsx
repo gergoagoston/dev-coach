@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiPost } from "../lib/api";
 
 type RepositoryHabitInsight = {
 	concept: string;
@@ -49,22 +50,14 @@ export const RepositoryHabitsPanel = () => {
 		setErrorMessage("");
 
 		try {
-			const response = await fetch(
-				"http://localhost:3000/api/github/repository-habits",
+			const { response, data } = await apiPost<RepositoryHabitsResponse>(
+				"/api/github/repository-habits",
 				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({
-						token: githubToken,
-						repoName: repoName.trim(),
-						taskDescription: taskDescription.trim(),
-					}),
+					token: githubToken,
+					repoName: repoName.trim(),
+					taskDescription: taskDescription.trim(),
 				},
 			);
-
-			const data = (await response.json()) as RepositoryHabitsResponse;
 
 			if (!response.ok) {
 				throw new Error(data.error ?? "Failed to load repository habits");

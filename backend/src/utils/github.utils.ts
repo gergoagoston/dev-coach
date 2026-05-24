@@ -1,9 +1,11 @@
+import { Octokit } from "@octokit/rest";
 import type { PrismaClient } from "@prisma/client";
 import type {
 	GithubConflictPayload,
 	GithubPullRequestFile,
 	RepoSlug,
-} from "../schemas/github.types.js";
+} from "../types/github.types.js";
+import type { GeminiImprovement } from "../services/gemini.types.js";
 
 export type GithubLearningImprovement = {
 	concept: string;
@@ -18,7 +20,7 @@ export async function ensureGithubUser(
 	prisma: PrismaClient,
 	githubUsername: string,
 ) {
-	await prisma.user.upsert({
+	return prisma.user.upsert({
 		where: { githubUsername },
 		create: { githubUsername },
 		update: {},
@@ -75,34 +77,8 @@ export function parseRepoSlug(repoName: string): RepoSlug | null {
 	};
 }
 
-export function parseCachedConflicts(rawConflicts: string): {
-	conflicts: Array<Record<string, unknown>>;
-} {
-	try {
-		const parsed = JSON.parse(rawConflicts) as {
-			conflicts?: Array<Record<string, unknown>>;
-		};
-
-		return {
-			conflicts: Array.isArray(parsed.conflicts) ? parsed.conflicts : [],
-		};
-	} catch {
-		return { conflicts: [] };
-	}
-}
-
-export function getCachedConflictRadar(pullRequest: unknown) {
-	if (
-		pullRequest &&
-		typeof pullRequest === "object" &&
-		"conflictRadar" in pullRequest
-	) {
-		return (
-			(pullRequest as { conflictRadar?: string | null }).conflictRadar ?? null
-		);
-	}
-
-	return null;
+export function createOctokit(token: string) {
+	return new Octokit({ auth: token });
 }
 
 export function normalizeConflictUsers<
@@ -127,6 +103,24 @@ export function normalizeConflictUsers<
 	};
 }
 
+function isLearningImprovement(value: unknown): value is GeminiImprovement {
+	if (!value || typeof value !== "object") {
+		return false;
+	}
+
+	const improvement = value as Partial<GeminiImprovement>;
+	return (
+		typeof improvement.concept === "string" &&
+		typeof improvement.title === "string" &&
+		(improvement.severity === "high" ||
+			improvement.severity === "medium" ||
+			improvement.severity === "low") &&
+		typeof improvement.explanation === "string" &&
+		typeof improvement.badExample === "string" &&
+		typeof improvement.goodExample === "string"
+	);
+}
+
 export function extractLearningSignals(improvements: unknown) {
 	if (!Array.isArray(improvements)) {
 		return [];
@@ -140,7 +134,19 @@ export function extractLearningSignals(improvements: unknown) {
 
 	const dedupedByConcept = new Map<string, GithubLearningImprovement>();
 
-	for (const improvement of improvements) {
+	for (const item of improvements) {
+		if (!isLearningImprovement(item)) {
+			continue;
+		}
+
+		const improvement: GithubLearningImprovement = {
+			concept: item.concept,
+			title: item.title,
+			severity: item.severity,
+			explanation: item.explanation,
+			badExample: item.badExample,
+			goodExample: item.goodExample,
+		};
 		const existing = dedupedByConcept.get(improvement.concept);
 
 		if (

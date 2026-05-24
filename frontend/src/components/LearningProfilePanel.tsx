@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiGet } from "../lib/api";
 
 type LearningMemoryRecord = {
 	id: number;
@@ -51,11 +52,9 @@ export const LearningProfilePanel = () => {
 
 		const loadProfile = async () => {
 			try {
-				const response = await fetch(
-					`http://localhost:3000/api/github/learning-profile?username=${encodeURIComponent(username)}`,
+				const { response, data } = await apiGet<LearningProfileResponse>(
+					`/api/github/learning-profile?username=${encodeURIComponent(username)}`,
 				);
-
-				const data = (await response.json()) as LearningProfileResponse;
 
 				if (!response.ok) {
 					throw new Error(data.error ?? "Failed to load learning profile");

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiPost } from "../lib/api";
 
 type GithubValidateResponse = {
 	username: string;
@@ -26,18 +27,15 @@ export default function LoginPage() {
 		setErrorMessage("");
 
 		try {
-			const res = await fetch("http://localhost:3000/api/github/validate", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ token: trimmed }),
-			});
+			const { response, data } = await apiPost<GithubValidateResponse>(
+				"/api/github/validate",
+				{ token: trimmed },
+			);
 
-			const data = (await res.json()) as GithubValidateResponse;
-
-			if (!res.ok) {
+			if (!response.ok) {
 				throw new Error(data.error ?? "Validation failed");
 			}
-			console.log(data);
+
 			localStorage.setItem("githubToken", trimmed);
 			localStorage.setItem("githubUsername", data.username);
 			localStorage.setItem("githubAvatarUrl", data.profile?.avatarUrl ?? "");
@@ -76,31 +74,14 @@ export default function LoginPage() {
 							placeholder="ghp_xxxxxxxxxxxxxxxxx"
 							value={token}
 							onChange={(e) => setToken(e.target.value)}
-							className="
-				w-full rounded-xl border border-zinc-700
-				bg-zinc-950 px-4 py-3
-				text-sm text-white
-				placeholder:text-zinc-500
-				outline-none
-				transition-all duration-200
-				focus:border-blue-500
-				focus:ring-2 focus:ring-blue-500/20
-			  "
+							className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
 						/>
 					</div>
 
 					<button
 						type="submit"
 						disabled={isSubmitting}
-						className="
-			  w-full rounded-xl
-			  bg-white text-black
-			  py-3 text-sm font-medium
-			  transition-all duration-200
-			  hover:scale-[1.01]
-			  hover:bg-zinc-200
-			  active:scale-[0.99]
-			"
+						className="w-full rounded-xl bg-white py-3 text-sm font-medium text-black transition-all duration-200 hover:bg-zinc-200 active:scale-[0.99] disabled:opacity-60"
 					>
 						{isSubmitting ? "Validating..." : "Continue"}
 					</button>
@@ -110,7 +91,7 @@ export default function LoginPage() {
 					{errorMessage ? (
 						<span className="text-red-400">Error: {errorMessage}</span>
 					) : (
-						"Your token is stored securely"
+						"Your token is stored locally in this browser"
 					)}
 				</div>
 			</div>

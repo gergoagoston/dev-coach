@@ -1,11 +1,15 @@
-import { Octokit } from "@octokit/rest";
 import { Router } from "express";
 import type { PrismaClient } from "@prisma/client";
 import type {
 	GithubPrsBody,
 	GithubPullRequest,
-} from "../schemas/github.types.js";
-import { ensureGithubUser, parseRepoSlug } from "../utils/github.utils.js";
+} from "../types/github.types.js";
+import { badRequest } from "../utils/http.utils.js";
+import {
+	createOctokit,
+	ensureGithubUser,
+	parseRepoSlug,
+} from "../utils/github.utils.js";
 
 export function createGithubPrsRouter(prisma: PrismaClient) {
 	const router = Router();
@@ -14,22 +18,18 @@ export function createGithubPrsRouter(prisma: PrismaClient) {
 		const { token, repoName } = req.body as GithubPrsBody;
 
 		if (!token || !repoName) {
-			res
-				.status(400)
-				.json({ error: "GitHub token and repoName are required" });
+			badRequest(res, "GitHub token and repoName are required");
 			return;
 		}
 
 		const repoSlug = parseRepoSlug(repoName);
 		if (!repoSlug) {
-			res.status(400).json({
-				error: 'repoName must be in the format "owner/repo"',
-			});
+			badRequest(res, 'repoName must be in the format "owner/repo"');
 			return;
 		}
 
 		try {
-			const octokit = new Octokit({ auth: token });
+			const octokit = createOctokit(token);
 			const { data: authenticatedUser } =
 				await octokit.rest.users.getAuthenticated();
 			await ensureGithubUser(prisma, authenticatedUser.login);
@@ -48,31 +48,33 @@ export function createGithubPrsRouter(prisma: PrismaClient) {
 			for (const pullRequest of pullRequests as GithubPullRequest[]) {
 				const githubUsername =
 					pullRequest.user?.login ?? authenticatedUser.login;
+				if (githubUsername !== authenticatedUser.login) {
+					continue;
+				}
+
 				await ensureGithubUser(prisma, githubUsername);
-				if (githubUsername == authenticatedUser.login) {
-					const saved = await prisma.pullRequest.upsert({
-						where: {
-							repoName_prNumber: {
-								repoName,
-								prNumber: pullRequest.number,
-							},
-						},
-						create: {
-							githubUsername,
+				const saved = await prisma.pullRequest.upsert({
+					where: {
+						repoName_prNumber: {
 							repoName,
 							prNumber: pullRequest.number,
-							title: pullRequest.title,
-							status: pullRequest.state,
 						},
-						update: {
-							githubUsername,
-							title: pullRequest.title,
-							status: pullRequest.state,
-						},
-					});
+					},
+					create: {
+						githubUsername,
+						repoName,
+						prNumber: pullRequest.number,
+						title: pullRequest.title,
+						status: pullRequest.state,
+					},
+					update: {
+						githubUsername,
+						title: pullRequest.title,
+						status: pullRequest.state,
+					},
+				});
 
-					savedPullRequests.push(saved);
-				}
+				savedPullRequests.push(saved);
 			}
 
 			res.status(200).json({
