@@ -2,13 +2,14 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# Prisma fájlok és függőségek másolása még az install előtt,
+# mert a postinstall futtatja a `prisma generate` parancsot.
+COPY prisma.config.ts ./
+COPY prisma ./prisma/
+
 # Függőségek másolása és telepítése
 COPY package*.json ./
 RUN npm install
-
-# Prisma kliens generálása
-COPY prisma ./prisma/
-RUN npx prisma generate
 
 # Teljes forráskód átmásolása
 COPY . .
