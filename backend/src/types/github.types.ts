@@ -20,8 +20,6 @@ export type GithubConflictsBody = {
 	prNumber?: number;
 };
 
-export type GithubCheckConflictsBody = GithubConflictsBody;
-
 export type RepoSlug = {
 	owner: string;
 	repo: string;

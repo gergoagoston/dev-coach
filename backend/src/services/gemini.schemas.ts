@@ -57,18 +57,6 @@ export const conflictResponseSchema = {
 	required: ["conflicts"],
 };
 
-export const repoTaskSchema = {
-	type: "object",
-	properties: {
-		recommendations: {
-			type: "array",
-			items: { type: "string" },
-		},
-	},
-	required: ["recommendations"],
-	additionalProperties: false,
-} as const;
-
 export const repoHabitsSchema = {
 	type: "object",
 	properties: {

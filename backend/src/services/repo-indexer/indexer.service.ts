@@ -1,10 +1,6 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
-import {
-	RepositoryIndexRequest,
-	RepositoryIndexResult,
-	RepositoryChunk,
-} from "./types.js";
+import { RepositoryIndexRequest, RepositoryChunk } from "./types.js";
 
 export type IndexedChunk = RepositoryChunk & {
 	embedding: Record<string, number>;
@@ -187,41 +183,4 @@ export function vectorSearchIndex(
 
 	scores.sort((left, right) => right.score - left.score);
 	return scores.slice(0, topK);
-}
-
-/** CLI helper: index workspace and optionally write a local JSON file. */
-export async function indexRepository(
-	request: RepositoryIndexRequest & { writeIndexFile?: boolean },
-): Promise<RepositoryIndexResult> {
-	const index = await buildRepositoryIndex(request);
-
-	if (request.writeIndexFile && request.workspaceDir) {
-		const indexPath = join(request.workspaceDir, ".pr-assistant-index.json");
-		await writeFile(indexPath, JSON.stringify(index, null, 2), "utf8");
-	}
-
-	return {
-		repoUrl: index.repoUrl,
-		localPath: request.workspaceDir ?? "",
-		branch: request.branch ?? "local",
-		filesScanned: index.filesScanned,
-		chunks: index.chunks.map(({ filepath, chunkType, symbolName, code }) => ({
-			filepath,
-			chunkType,
-			symbolName,
-			code,
-		})),
-		chunkCount: index.chunkCount,
-	};
-}
-
-/** CLI helper: load index from a JSON file on disk. */
-export async function vectorSearch(
-	indexPath: string,
-	query: string,
-	topK = 5,
-): Promise<VectorSearchHit[]> {
-	const raw = await readFile(indexPath, "utf8");
-	const index = JSON.parse(raw) as RepositoryVectorIndex;
-	return vectorSearchIndex(index, query, topK);
 }
