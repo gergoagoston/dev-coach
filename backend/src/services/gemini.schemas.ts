@@ -74,6 +74,8 @@ export const repoHabitsSchema = {
 	properties: {
 		habits: {
 			type: "array",
+			minItems: 3,
+			maxItems: 5,
 			items: {
 				type: "object",
 				properties: {
@@ -82,6 +84,8 @@ export const repoHabitsSchema = {
 					description: { type: "string" },
 					evidenceFiles: {
 						type: "array",
+						minItems: 3,
+						maxItems: 5,
 						items: { type: "string" },
 					},
 					priority: {

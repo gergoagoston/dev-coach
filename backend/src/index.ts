@@ -4,6 +4,7 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { GithubRouter } from "./routes/global.router.js";
+import { createRepositoryHabitsRouter } from "./routes/repository-habits.route.js";
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ const prisma = new PrismaClient({
 });
 
 app.use("/api/github", GithubRouter(prisma));
+app.use("/api/repository-habits", createRepositoryHabitsRouter(prisma));
 
 app.get("/api/health", async (_req, res) => {
 	res.status(200).json({
@@ -35,8 +37,17 @@ app.get("/api/health", async (_req, res) => {
 	});
 });
 
+function assertPrismaClientIsCurrent() {
+	if (!prisma.repositoryIndex) {
+		throw new Error(
+			"Prisma client is missing RepositoryIndex. Run: cd backend && npm run db:generate",
+		);
+	}
+}
+
 async function startServer() {
 	try {
+		assertPrismaClientIsCurrent();
 		await prisma.$connect();
 
 		app.listen(port, () => {

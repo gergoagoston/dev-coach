@@ -36,6 +36,7 @@ async function main() {
 		repoUrl: "local",
 		maxFiles: 800,
 		maxChunkSize: 3000,
+		writeIndexFile: true,
 	});
 	console.log(`Indexed ${res.filesScanned} files -> ${res.chunkCount} chunks`);
 

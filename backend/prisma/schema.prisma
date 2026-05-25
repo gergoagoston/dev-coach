@@ -42,3 +42,13 @@ model LearningMemory {
 
   @@unique([githubUsername, concept])
 }
+
+// RAG vector index per repository (chunks + embeddings), no local JSON file
+model RepositoryIndex {
+  repoName     String   @id
+  filesScanned Int
+  chunkCount   Int
+  indexData    Json
+  indexedAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

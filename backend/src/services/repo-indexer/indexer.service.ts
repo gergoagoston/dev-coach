@@ -6,6 +6,22 @@ import {
 	RepositoryChunk,
 } from "./types.js";
 
+export type IndexedChunk = RepositoryChunk & {
+	embedding: Record<string, number>;
+};
+
+export type RepositoryVectorIndex = {
+	repoUrl: string;
+	filesScanned: number;
+	chunkCount: number;
+	chunks: IndexedChunk[];
+};
+
+export type VectorSearchHit = {
+	score: number;
+	chunk: IndexedChunk;
+};
+
 function isTextFile(name: string) {
 	return /\.(ts|tsx|js|jsx|json|md|py|java|go|rs|css|html)$/i.test(name);
 }
@@ -17,12 +33,11 @@ function tokenize(text: string) {
 		.filter(Boolean);
 }
 
-function textToVector(text: string) {
+export function textToVector(text: string) {
 	const tokens = tokenize(text);
 	const freqs: Record<string, number> = {};
 	for (const t of tokens) freqs[t] = (freqs[t] ?? 0) + 1;
 
-	// normalize (L2)
 	let sum = 0;
 	for (const v of Object.values(freqs)) sum += v * v;
 	const norm = Math.sqrt(sum) || 1;
@@ -43,43 +58,98 @@ function cosine(a: Record<string, number>, b: Record<string, number>) {
 	return dot / denom;
 }
 
+const SKIPPED_DIR_NAMES = new Set([
+	".git",
+	"node_modules",
+	"dist",
+	"build",
+	"coverage",
+	".next",
+	"vendor",
+	"tmp",
+	"temp",
+]);
+
 async function walkFiles(root: string, maxFiles: number) {
 	const out: string[] = [];
+
 	async function walk(dir: string) {
-		const items = await readdir(dir, { withFileTypes: true });
+		if (out.length >= maxFiles) {
+			return;
+		}
+
+		let items;
+		try {
+			items = await readdir(dir, { withFileTypes: true });
+		} catch {
+			return;
+		}
+
 		for (const it of items) {
+			if (out.length >= maxFiles) {
+				return;
+			}
+
+			if (it.name === "." || it.name === "..") {
+				continue;
+			}
+
 			const full = join(dir, it.name);
+
+			if (typeof it.isSymbolicLink === "function" && it.isSymbolicLink()) {
+				continue;
+			}
+
 			if (it.isDirectory()) {
-				await walk(full);
-			} else if (it.isFile() && isTextFile(it.name)) {
+				if (SKIPPED_DIR_NAMES.has(it.name)) {
+					continue;
+				}
+
+				try {
+					await walk(full);
+				} catch {
+					continue;
+				}
+				continue;
+			}
+
+			if (it.isFile() && isTextFile(it.name)) {
 				out.push(full);
-				if (out.length >= maxFiles) return;
 			}
 		}
 	}
+
 	await walk(root);
 	return out;
 }
 
-export async function indexRepository(
+export async function buildRepositoryIndex(
 	request: RepositoryIndexRequest,
-): Promise<RepositoryIndexResult> {
+): Promise<RepositoryVectorIndex> {
 	const {
 		workspaceDir,
 		maxChunkSize = 2000,
 		maxFiles = 1000,
 		repoUrl = "local",
 	} = request;
-	if (!workspaceDir)
+
+	if (!workspaceDir) {
 		throw new Error("workspaceDir is required for local indexing");
+	}
 
 	const files = await walkFiles(workspaceDir, maxFiles);
 	const chunks: RepositoryChunk[] = [];
+
 	for (const fp of files) {
-		const text = await readFile(fp, "utf8");
+		let text = "";
+		try {
+			text = await readFile(fp, "utf8");
+		} catch {
+			continue;
+		}
+
 		if (!text.trim()) continue;
 
-		// simple chunking by size
 		for (let i = 0; i < text.length; i += maxChunkSize) {
 			const slice = text.slice(i, i + maxChunkSize);
 			chunks.push({
@@ -91,56 +161,67 @@ export async function indexRepository(
 		}
 	}
 
-	// compute embeddings
-	const persisted = {
-		repoUrl,
-		localPath: workspaceDir,
-		branch: "local",
-		filesScanned: files.length,
-		chunks: [] as Array<
-			RepositoryChunk & { embedding: Record<string, number> }
-		>,
-		chunkCount: chunks.length,
-	};
-
-	for (const c of chunks) {
-		const embedding = textToVector(c.code);
-		(persisted.chunks as any).push({ ...c, embedding });
-	}
-
-	// write index file next to workspace
-	const indexPath = join(workspaceDir, ".pr-assistant-index.json");
-	await writeFile(indexPath, JSON.stringify(persisted, null, 2), "utf8");
+	const indexedChunks: IndexedChunk[] = chunks.map((chunk) => ({
+		...chunk,
+		embedding: textToVector(chunk.code),
+	}));
 
 	return {
-		repoUrl: persisted.repoUrl,
-		localPath: persisted.localPath,
-		branch: persisted.branch,
-		filesScanned: persisted.filesScanned,
-		chunks: persisted.chunks.map((c: any) => ({
-			filepath: c.filepath,
-			chunkType: c.chunkType,
-			symbolName: c.symbolName,
-			code: c.code,
-		})),
-		chunkCount: persisted.chunkCount,
+		repoUrl,
+		filesScanned: files.length,
+		chunkCount: indexedChunks.length,
+		chunks: indexedChunks,
 	};
 }
 
+export function vectorSearchIndex(
+	index: RepositoryVectorIndex,
+	query: string,
+	topK = 5,
+): VectorSearchHit[] {
+	const qvec = textToVector(query);
+	const scores = index.chunks.map((chunk) => ({
+		score: cosine(qvec, chunk.embedding),
+		chunk,
+	}));
+
+	scores.sort((left, right) => right.score - left.score);
+	return scores.slice(0, topK);
+}
+
+/** CLI helper: index workspace and optionally write a local JSON file. */
+export async function indexRepository(
+	request: RepositoryIndexRequest & { writeIndexFile?: boolean },
+): Promise<RepositoryIndexResult> {
+	const index = await buildRepositoryIndex(request);
+
+	if (request.writeIndexFile && request.workspaceDir) {
+		const indexPath = join(request.workspaceDir, ".pr-assistant-index.json");
+		await writeFile(indexPath, JSON.stringify(index, null, 2), "utf8");
+	}
+
+	return {
+		repoUrl: index.repoUrl,
+		localPath: request.workspaceDir ?? "",
+		branch: request.branch ?? "local",
+		filesScanned: index.filesScanned,
+		chunks: index.chunks.map(({ filepath, chunkType, symbolName, code }) => ({
+			filepath,
+			chunkType,
+			symbolName,
+			code,
+		})),
+		chunkCount: index.chunkCount,
+	};
+}
+
+/** CLI helper: load index from a JSON file on disk. */
 export async function vectorSearch(
 	indexPath: string,
 	query: string,
 	topK = 5,
-) {
+): Promise<VectorSearchHit[]> {
 	const raw = await readFile(indexPath, "utf8");
-	const idx = JSON.parse(raw) as any;
-	const qvec = textToVector(query);
-	const scores = idx.chunks.map((c: any) => ({
-		score: cosine(qvec, c.embedding),
-		chunk: c,
-	}));
-	scores.sort((a: any, b: any) => b.score - a.score);
-	return scores.slice(0, topK);
+	const index = JSON.parse(raw) as RepositoryVectorIndex;
+	return vectorSearchIndex(index, query, topK);
 }
-
-export { textToVector };

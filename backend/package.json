@@ -3,7 +3,10 @@
     "version": "1.0.0",
     "main": "src/index.ts",
     "scripts": {
-        "dev": "tsx watch src/index.ts"
+        "dev": "tsx watch src/index.ts",
+        "postinstall": "prisma generate",
+        "db:generate": "prisma generate",
+        "db:push": "prisma db push"
     },
     "dependencies": {
         "@google/genai": "^2.4.0",

@@ -76,18 +76,24 @@ export async function analyzeRepositoryHabits(
 	context: string,
 	taskDescription: string,
 ): Promise<GeminiRepoHabitsResult> {
-	const task = taskDescription.trim() || "general repository onboarding";
-
 	return generateStructuredJson<GeminiRepoHabitsResult>({
 		fallback: { habits: [], recommendations: [] },
 		responseSchema: repoHabitsSchema,
-		systemInstruction: `You extract recurring engineering habits from repository context. Focus on conventions, folder structure, testing style, error handling, and naming patterns evidenced in the code.`,
+		systemInstruction: `You are a repository habits coach. You receive RAG-retrieved code snippets from a real GitHub repository and a developer task.
+
+Your job:
+1. Infer recurring conventions that already exist in this codebase (naming, folder layout, error handling, testing, API style, state management, etc.).
+2. Pick habits that matter most when implementing the given task — not generic programming advice.
+3. Return exactly 4 or 5 habits. Each habit must cite real evidenceFiles from the provided context.
+4. Add 3-5 short recommendations: actionable bullets for how to implement the task in this repo's style.
+
+Do not invent files that are not present in the context.`,
 		contents: [
 			{
 				role: "user",
 				parts: [
 					{
-						text: `Task: ${task}\n\nRepository context:\n${truncateText(context, 30_000)}`,
+						text: `Developer task:\n${taskDescription}\n\nRelevant repository context (vector search hits):\n${truncateText(context, 30_000)}`,
 					},
 				],
 			},

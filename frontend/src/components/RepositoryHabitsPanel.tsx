@@ -30,19 +30,18 @@ export const RepositoryHabitsPanel = () => {
 	const [habits, setHabits] = useState<RepositoryHabitInsight[]>([]);
 	const [recommendations, setRecommendations] = useState<string[]>([]);
 	const [filesScanned, setFilesScanned] = useState(0);
+	const [indexCached, setIndexCached] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
 
 	const analyzeRepository = async () => {
-		const githubToken = localStorage.getItem("githubToken") ?? "";
-
-		if (!githubToken) {
-			setErrorMessage("Missing GitHub token. Please sign in again.");
+		if (!repoName.trim()) {
+			setErrorMessage("Enter a repository name before loading habits.");
 			return;
 		}
 
-		if (!repoName.trim()) {
-			setErrorMessage("Enter a repository name before loading habits.");
+		if (!taskDescription.trim()) {
+			setErrorMessage("Describe the task you want to implement.");
 			return;
 		}
 
@@ -51,9 +50,8 @@ export const RepositoryHabitsPanel = () => {
 
 		try {
 			const { response, data } = await apiPost<RepositoryHabitsResponse>(
-				"/api/github/repository-habits",
+				"/api/repository-habits",
 				{
-					token: githubToken,
 					repoName: repoName.trim(),
 					taskDescription: taskDescription.trim(),
 				},
@@ -66,6 +64,7 @@ export const RepositoryHabitsPanel = () => {
 			setHabits(data.habits ?? []);
 			setRecommendations(data.recommendations ?? []);
 			setFilesScanned(data.filesScanned ?? 0);
+			setIndexCached(Boolean(data.cached));
 		} catch (error) {
 			setErrorMessage(
 				error instanceof Error
@@ -89,20 +88,17 @@ export const RepositoryHabitsPanel = () => {
 							How this repo expects work to be done
 						</h2>
 						<p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-							Add a repo and a task, and the backend will snapshot the GitHub
-							repo, pull the context it needs, and return the rules and habits
-							that show up again and again in this codebase.
+							Only public GitHub repositories. Enter owner/repo and describe
+							your task — no sign-in or token required.
 						</p>
-					</div>
-					<div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm backdrop-blur">
-						<div className="text-slate-400">Mode</div>
-						<div className="mt-1 font-semibold text-white">
-							RAG repo analysis
-						</div>
 					</div>
 				</div>
 
-				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+				<div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+					<StatTile
+						label="Index source"
+						value={indexCached ? "Database cache" : "Fresh clone"}
+					/>
 					<StatTile label="Files scanned" value={filesScanned} />
 					<StatTile label="Habits loaded" value={habits.length} />
 					<StatTile
@@ -150,7 +146,7 @@ export const RepositoryHabitsPanel = () => {
 							disabled={loading}
 							className="mt-6 rounded-2xl bg-black px-5 py-3 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
 						>
-							{loading ? "Reading repo..." : "Load repo habits"}
+							{loading ? "Cloning & indexing repo..." : "Analyze habits"}
 						</button>
 					</div>
 				</div>
