@@ -1,4 +1,4 @@
-import { geminiClient, GEMINI_MODEL } from "../gemini-client.js";
+import { geminiClient, GEMINI_MODEL } from "../integrations/gemini/client.js";
 import type { ContentListUnion } from "@google/genai";
 import type { GithubConflictPayload } from "../types/github.types.js";
 import type {

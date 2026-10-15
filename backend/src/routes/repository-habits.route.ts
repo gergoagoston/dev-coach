@@ -12,6 +12,8 @@ import { RepoGitService } from "../services/repo-indexer/git.service.js";
 import { GitCloneError } from "../services/repo-indexer/types.js";
 import { badRequest } from "../utils/http.utils.js";
 import { parseRepoSlug } from "../utils/github.utils.js";
+import { validateBody } from "../middleware/validation.middleware.js";
+import { repositoryHabitsSchema } from "../schemas/api.schemas.js";
 
 const RAG_TOP_K = 10;
 const MAX_HABITS = 5;
@@ -20,19 +22,13 @@ export function createRepositoryHabitsRouter(prisma: PrismaClient) {
 	const router = Router();
 	const gitService = new RepoGitService();
 
-	router.post("/", async (req, res) => {
-		const { repoName, taskDescription = "" } = req.body as RepositoryHabitsBody;
-
-		if (!repoName) {
-			badRequest(res, "repoName is required");
-			return;
-		}
+	router.post("/", validateBody(repositoryHabitsSchema), async (req, res) => {
+		const { repoName, taskDescription = "" } = req.body as RepositoryHabitsBody & {
+			repoName: string;
+			taskDescription: string;
+		};
 
 		const task = taskDescription.trim();
-		if (!task) {
-			badRequest(res, "taskDescription is required");
-			return;
-		}
 
 		const normalizedRepo = parseRepoSlug(repoName);
 		if (!normalizedRepo) {
@@ -56,11 +52,11 @@ export function createRepositoryHabitsRouter(prisma: PrismaClient) {
 						});
 						localPath = cloneResult.localPath;
 
-						const builtIndex = await buildRepositoryIndex({
+				const builtIndex = await buildRepositoryIndex({
 							workspaceDir: localPath,
 							repoUrl: repoKey,
-							maxFiles: 400,
-							maxChunkSize: 2500,
+							maxFiles: 150,
+							maxChunkSize: 3000,
 						});
 						return builtIndex;
 					} finally {
@@ -74,7 +70,7 @@ export function createRepositoryHabitsRouter(prisma: PrismaClient) {
 			);
 
 			const ragQuery = buildRagQuery(task);
-			const hits = vectorSearchIndex(index, ragQuery, RAG_TOP_K);
+			const hits = await vectorSearchIndex(index, ragQuery, RAG_TOP_K);
 			const context = formatRagContext(hits);
 			const analysis = await analyzeRepositoryHabits(context, task);
 

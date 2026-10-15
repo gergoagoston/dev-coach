@@ -5,6 +5,7 @@ import type {
 	LearningProfileResponse,
 } from "../types/learning-profile.types.js";
 import { badRequest } from "../utils/http.utils.js";
+import { usernameQuerySchema } from "../schemas/api.schemas.js";
 
 export function createLearningProfileRouter(prisma: PrismaClient) {
 	const router = Router();
@@ -12,14 +13,16 @@ export function createLearningProfileRouter(prisma: PrismaClient) {
 	router.get("/learning-profile", async (req, res) => {
 		const { username } = req.query;
 
-		if (!username || typeof username !== "string") {
+		const parsedQuery = usernameQuerySchema.safeParse({ username });
+		if (!parsedQuery.success) {
 			badRequest(res, "Missing username query parameter");
 			return;
 		}
+		const validUsername = parsedQuery.data.username;
 
 		try {
 			const mistakes = await prisma.learningMemory.findMany({
-				where: { githubUsername: username },
+				where: { githubUsername: validUsername },
 				orderBy: [{ count: "desc" }, { lastSeen: "desc" }],
 			});
 

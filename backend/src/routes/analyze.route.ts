@@ -12,21 +12,20 @@ import {
 	parseRepoSlug,
 	upsertLearningMemoryEntries,
 } from "../utils/github.utils.js";
+import { validateBody } from "../middleware/validation.middleware.js";
+import { githubAnalyzeSchema } from "../schemas/api.schemas.js";
 
 export function createGithubAnalyzeRouter(prisma: PrismaClient) {
 	const router = Router();
 
-	router.post("/analyze", async (req, res) => {
+	router.post("/analyze", validateBody(githubAnalyzeSchema), async (req, res) => {
 		const { token, repoName, prNumber: rawPrNumber, username } =
-			req.body as GithubAnalyzeBody;
-
-		if (!token || !repoName || rawPrNumber == null || !username) {
-			badRequest(
-				res,
-				"GitHub token, repoName, prNumber, and username are required",
-			);
-			return;
-		}
+			req.body as GithubAnalyzeBody & {
+				token: string;
+				repoName: string;
+				prNumber: number;
+				username: string;
+			};
 
 		const prNumber = parsePrNumber(rawPrNumber);
 		if (!prNumber) {

@@ -1,13 +1,19 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { RepositoryIndexRequest, RepositoryChunk } from "./types.js";
+import {
+	embedText,
+	GEMINI_EMBEDDING_MODEL,
+} from "../../integrations/gemini/client.js";
 
 export type IndexedChunk = RepositoryChunk & {
-	embedding: Record<string, number>;
+	embedding: number[];
 };
 
 export type RepositoryVectorIndex = {
+	version: 2;
 	repoUrl: string;
+	embeddingModel: string;
 	filesScanned: number;
 	chunkCount: number;
 	chunks: IndexedChunk[];
@@ -22,36 +28,19 @@ function isTextFile(name: string) {
 	return /\.(ts|tsx|js|jsx|json|md|py|java|go|rs|css|html)$/i.test(name);
 }
 
-function tokenize(text: string) {
-	return text
-		.toLowerCase()
-		.split(/[^a-z0-9_]+/i)
-		.filter(Boolean);
-}
+function cosine(a: number[], b: number[]) {
+	if (a.length !== b.length || a.length === 0) return 0;
 
-export function textToVector(text: string) {
-	const tokens = tokenize(text);
-	const freqs: Record<string, number> = {};
-	for (const t of tokens) freqs[t] = (freqs[t] ?? 0) + 1;
-
-	let sum = 0;
-	for (const v of Object.values(freqs)) sum += v * v;
-	const norm = Math.sqrt(sum) || 1;
-	for (const k of Object.keys(freqs)) freqs[k] = freqs[k] / norm;
-	return freqs;
-}
-
-function cosine(a: Record<string, number>, b: Record<string, number>) {
 	let dot = 0;
-	for (const k of Object.keys(a)) {
-		if (k in b) dot += a[k] * (b[k] as number);
-	}
 	let na = 0;
 	let nb = 0;
-	for (const v of Object.values(a)) na += v * v;
-	for (const v of Object.values(b)) nb += v * v;
-	const denom = Math.sqrt(na) * Math.sqrt(nb) || 1;
-	return dot / denom;
+	for (let index = 0; index < a.length; index += 1) {
+		dot += a[index] * b[index];
+		na += a[index] * a[index];
+		nb += b[index] * b[index];
+	}
+
+	return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
 }
 
 const SKIPPED_DIR_NAMES = new Set([
@@ -157,25 +146,32 @@ export async function buildRepositoryIndex(
 		}
 	}
 
-	const indexedChunks: IndexedChunk[] = chunks.map((chunk) => ({
-		...chunk,
-		embedding: textToVector(chunk.code),
-	}));
+	const indexedChunks: IndexedChunk[] = [];
+	for (let index = 0; index < chunks.length; index += 1) {
+		const chunk = chunks[index];
+		const embedding = await embedText(
+			`${chunk.filepath}\n${chunk.code}`,
+			"RETRIEVAL_DOCUMENT",
+		);
+		indexedChunks.push({ ...chunk, embedding });
+	}
 
 	return {
+		version: 2,
 		repoUrl,
+		embeddingModel: GEMINI_EMBEDDING_MODEL,
 		filesScanned: files.length,
 		chunkCount: indexedChunks.length,
 		chunks: indexedChunks,
 	};
 }
 
-export function vectorSearchIndex(
+export async function vectorSearchIndex(
 	index: RepositoryVectorIndex,
 	query: string,
 	topK = 5,
-): VectorSearchHit[] {
-	const qvec = textToVector(query);
+): Promise<VectorSearchHit[]> {
+	const qvec = await embedText(query, "RETRIEVAL_QUERY");
 	const scores = index.chunks.map((chunk) => ({
 		score: cosine(qvec, chunk.embedding),
 		chunk,

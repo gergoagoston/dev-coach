@@ -13,18 +13,22 @@ import {
 	ensureGithubUser,
 	normalizeConflictUsers,
 } from "../utils/github.utils.js";
+import { validateBody } from "../middleware/validation.middleware.js";
+import { githubConflictsSchema } from "../schemas/api.schemas.js";
 
 export function createGithubConflictsRouter(prisma: PrismaClient) {
 	const router = Router();
 
-	router.post("/check-conflicts", async (req, res) => {
+	router.post(
+		"/check-conflicts",
+		validateBody(githubConflictsSchema),
+		async (req, res) => {
 		const { token, repoName, prNumber: rawPrNumber } =
-			req.body as GithubConflictsBody;
-
-		if (!token || !repoName || rawPrNumber == null) {
-			badRequest(res, "GitHub token, repoName, and prNumber are required");
-			return;
-		}
+			req.body as GithubConflictsBody & {
+				token: string;
+				repoName: string;
+				prNumber: number;
+			};
 
 		const prNumber = parsePrNumber(rawPrNumber);
 		if (!prNumber) {
@@ -47,7 +51,8 @@ export function createGithubConflictsRouter(prisma: PrismaClient) {
 			console.error("GitHub check-conflicts failed:", error);
 			res.status(500).json({ error: "Failed to check conflicts" });
 		}
-	});
+		},
+	);
 
 	return router;
 }

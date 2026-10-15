@@ -3,17 +3,14 @@ import type { PrismaClient } from "@prisma/client";
 import type { GithubValidateBody } from "../types/github.types.js";
 import { badRequest } from "../utils/http.utils.js";
 import { createOctokit, ensureGithubUser } from "../utils/github.utils.js";
+import { validateBody } from "../middleware/validation.middleware.js";
+import { githubTokenSchema } from "../schemas/api.schemas.js";
 
 export function createGithubValidateRouter(prisma: PrismaClient) {
 	const router = Router();
 
-	router.post("/validate", async (req, res) => {
-		const { token } = req.body as GithubValidateBody;
-
-		if (!token) {
-			badRequest(res, "GitHub token is required");
-			return;
-		}
+	router.post("/validate", validateBody(githubTokenSchema), async (req, res) => {
+		const { token } = req.body as GithubValidateBody & { token: string };
 
 		try {
 			const octokit = createOctokit(token);

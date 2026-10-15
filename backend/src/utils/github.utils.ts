@@ -1,5 +1,5 @@
-import { Octokit } from "@octokit/rest";
 import type { PrismaClient } from "@prisma/client";
+import { createGithubClient } from "../integrations/github/client.js";
 import type {
 	GithubConflictPayload,
 	GithubPullRequestFile,
@@ -78,7 +78,7 @@ export function parseRepoSlug(repoName: string): RepoSlug | null {
 }
 
 export function createOctokit(token: string) {
-	return new Octokit({ auth: token });
+	return createGithubClient(token);
 }
 
 export function normalizeConflictUsers<

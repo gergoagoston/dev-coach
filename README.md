@@ -1,24 +1,77 @@
 # DevCoach
 
-## Overview
+DevCoach is a prototype AI-assisted pull request coach. It connects to GitHub, reviews pull request diffs with Gemini, detects possible conflicts between open pull requests, remembers recurring review findings, and explains repository-specific coding conventions.
 
-DevCoach is a PR assistant project built with React + Vite on the frontend, Node.js + TypeScript + Express on the backend, and PostgreSQL + Prisma for persistence. It includes PR synchronization, AI-powered code review, cross-PR conflict detection, and a repository indexer / RAG pipeline.
+This is intentionally a prototype. GitHub tokens are stored in browser `localStorage`, and Repository Habits currently supports public GitHub repositories.
 
-## Quick Start (Docker)
+## Architecture
 
-1. Make sure a `.env` file exists at the project root and includes these keys:
+```text
+React + Vite frontend
+        │ HTTP/JSON
+        ▼
+Express + TypeScript backend
+        ├── GitHub integration (Octokit / REST API)
+        ├── Gemini integration (structured generation + embeddings)
+        └── PostgreSQL through Prisma
+```
 
-- `DATABASE_URL` (for example: `postgresql://postgres@postgres:5432/devcoach_db?schema=public`)
-- `PORT` (optional, default: `3000`)
-- `GEMINI_API_KEY` (if you use the Gemini / GenAI integration)
+Backend responsibilities are separated into:
 
-2. Start the stack:
+- `routes/` — HTTP endpoints
+- `middleware/` — validation and global error handling
+- `services/` — application workflows
+- `integrations/github/` and `integrations/gemini/` — external APIs
+- `services/repo-indexer/` — cloning, chunking, embedding, and retrieval
+- `schemas/` — Zod request schemas
+
+## Features
+
+- GitHub token validation and pull request synchronization
+- Structured Gemini code review with severity and code examples
+- Cross-PR conflict radar based on changed files and AI reasoning
+- Developer learning profile backed by recurring review concepts
+- Repository-specific habits and recommendations
+- 24-hour repository index cache in PostgreSQL
+- Docker Compose development environment
+
+## AI and RAG pipeline
+
+The Repository Habits feature uses retrieval-augmented generation:
+
+```text
+public GitHub repository
+        ↓
+shallow clone and text-file scan
+        ↓
+code chunks
+        ↓
+Gemini embedding model
+        ↓
+cosine-similarity retrieval
+        ↓
+retrieved code context + developer task
+        ↓
+Gemini structured habits and recommendations
+```
+
+This is an embedding-based RAG pipeline. Dense vectors are stored in the `RepositoryIndex.indexData` JSON field and retrieved in application memory. The prototype does not use a separate vector database or `pgvector` yet. Old index formats are invalidated automatically when the index version or embedding model changes.
+
+## Quick Start with Docker
+
+1. Copy `.env.example` to `.env`.
+2. Add a valid `GEMINI_API_KEY`.
+3. Start the stack:
 
 ```bash
 docker compose up --build
 ```
 
-During the backend image build, the Dockerfile copies the `prisma` folder before `npm install`, so `prisma generate` can run successfully. The compose startup also waits for Postgres to become available before running `prisma db push`.
+The services are available at:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:3000`
+- Health check: `http://localhost:3000/api/health`
 
 ## Local Development
 
@@ -40,32 +93,45 @@ npm install
 npm run dev
 ```
 
-## Prisma / Database
+## Main API routes
 
-- Schema: `backend/prisma/schema.prisma`
-- Prisma config: `backend/prisma.config.ts`
-- If you change the models, rerun the generation steps:
+- `POST /api/github/validate` — validate a GitHub token
+- `POST /api/github/prs` — synchronize pull requests
+- `POST /api/github/analyze` — analyze a pull request diff
+- `POST /api/github/check-conflicts` — analyze open PR conflicts
+- `GET /api/github/learning-profile?username=...` — load learning memory
+- `POST /api/repository-habits` — index a repository and generate habits
+- `GET /api/health` — check backend configuration and availability
 
-```bash
-cd backend
-npx prisma generate
-npx prisma db push
-```
+## Database
 
-## Main Features and Routes
+The Prisma schema is in `backend/prisma/schema.prisma`.
 
-- PR synchronization: `POST /api/github/prs` (`backend/src/routes/prs.route.ts`)
-- AI code review: `POST /api/github/analyze` (`backend/src/routes/analyze.route.ts`) - the Gemini helper expects structured JSON
-- Cross-PR conflict radar: `POST /api/github/check-conflicts` (`backend/src/routes/conflicts.route.ts`)
-- Learning profile: learning memories stored in the `learningMemory` table
-- Repo habits (RAG): `POST /api/repository-habits` (`backend/src/routes/repository-habits.route.ts`) - clones, indexes, retrieves, and runs AI analysis when needed
+- `User` stores GitHub identities.
+- `PullRequest` stores synchronized PRs and cached AI results.
+- `LearningMemory` stores recurring review concepts.
+- `RepositoryIndex` stores repository metadata and embedding-based index data.
 
-## Common Issues
+## Known prototype limitations
 
-## Useful Files
+- GitHub tokens are stored in browser `localStorage`.
+- Repository Habits supports public GitHub repositories.
+- Retrieval is performed in application memory rather than with `pgvector`.
+- Embeddings are generated for a bounded number of repository chunks.
+- Conflict Radar is an AI-assisted logical conflict detector, not a Git merge simulator.
+- AI output can fall back to an empty result if Gemini is unavailable or rate-limited.
 
-- Backend entry point: `backend/src/index.ts`
-- Gemini helper: `backend/src/services/gemini.service.ts`
-- Repository indexer: `backend/src/services/repo-indexer/*`
-- Frontend entry: `frontend/src/main.tsx` and `frontend/src/App.tsx`
-- Docker compose: `docker-compose.yml`
+## Security
+
+Never commit `.env` or real API keys. Use `.env.example` as the configuration template. If a key has ever been committed or exposed, revoke it and generate a replacement before sharing the project.
+
+## Useful files
+
+- `backend/src/index.ts` — backend entry point
+- `backend/src/integrations/gemini/client.ts` — Gemini generation and embeddings
+- `backend/src/services/gemini.service.ts` — structured AI workflows
+- `backend/src/services/repo-indexer/indexer.service.ts` — repository RAG indexing and search
+- `backend/src/routes/repository-habits.route.ts` — RAG endpoint
+- `backend/prisma/schema.prisma` — database schema
+- `frontend/src/App.tsx` — frontend routes
+- `frontend/src/components/Dashboard.tsx` — dashboard shell

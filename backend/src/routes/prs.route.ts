@@ -10,17 +10,17 @@ import {
 	ensureGithubUser,
 	parseRepoSlug,
 } from "../utils/github.utils.js";
+import { validateBody } from "../middleware/validation.middleware.js";
+import { githubPrsSchema } from "../schemas/api.schemas.js";
 
 export function createGithubPrsRouter(prisma: PrismaClient) {
 	const router = Router();
 
-	router.post("/prs", async (req, res) => {
-		const { token, repoName } = req.body as GithubPrsBody;
-
-		if (!token || !repoName) {
-			badRequest(res, "GitHub token and repoName are required");
-			return;
-		}
+	router.post("/prs", validateBody(githubPrsSchema), async (req, res) => {
+		const { token, repoName } = req.body as GithubPrsBody & {
+			token: string;
+			repoName: string;
+		};
 
 		const repoSlug = parseRepoSlug(repoName);
 		if (!repoSlug) {

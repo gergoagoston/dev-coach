@@ -36,7 +36,13 @@ export async function loadRepositoryIndex(
 		return null;
 	}
 
-	return record.indexData as RepositoryVectorIndex;
+	const index = record.indexData as Partial<RepositoryVectorIndex>;
+	if (index.version !== 2 || !index.embeddingModel || !Array.isArray(index.chunks)) {
+		await repositoryIndex.delete({ where: { repoName } }).catch(() => undefined);
+		return null;
+	}
+
+	return index as RepositoryVectorIndex;
 }
 
 export async function saveRepositoryIndex(
